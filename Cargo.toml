@@ -7,5 +7,9 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+serde = "1.0"
 actix-web = "3.3.2"
-lbase = { path = "/home/alexander/Development/lbase" }
+bigi = { git = "https://github.com/fomalhaut88/bigi.git", tag = "v0.4.0" }
+bigi-ecc = { git = "https://github.com/fomalhaut88/bigi-ecc.git", tag = "v0.4.0" }
+# lbase = { path = "/home/alexander/Development/lbase" }
+lbase = { path = "/home/akhlebushhev/Etc/lbase" }

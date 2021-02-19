@@ -1,35 +1,30 @@
 use std::sync::Mutex;
 
-use actix_web::{web, App, HttpServer, Responder};
+use actix_web::{web, App, HttpServer};
 
-use hashstorage::Lbase;
-
-
-pub struct AppState {
-    pub db: Mutex<Lbase>,
-}
-
-
-async fn index(data: web::Data<AppState>) -> impl Responder {
-    let size;
-    {
-        let db = data.db.lock().unwrap();
-        size = db.block_table.size();
-    }
-    format!("{}\n", size)
-}
+use hashstorage::db::Lbase;
+use hashstorage::appstate::AppState;
+use hashstorage::views::{version, groups, keys, info,
+                         data_get, data_post, data_put, data_delete};
 
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    let data = web::Data::new(AppState {
+    let state = web::Data::new(AppState {
         db: Mutex::new(Lbase::new("lbase-db")),
     });
 
     HttpServer::new(move || {
         App::new()
-            .app_data(data.clone())
-            .route("/", web::get().to(index))
+            .app_data(state.clone())
+            .service(version)
+            .service(groups)
+            .service(keys)
+            .service(info)
+            .service(data_get)
+            .service(data_post)
+            .service(data_put)
+            .service(data_delete)
     })
         .bind(("127.0.0.1", 8080))?
         .run()
