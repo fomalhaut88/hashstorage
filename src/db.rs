@@ -1,5 +1,3 @@
-use std::sync::Mutex;
-
 use lbase::{Table, Index, Heap};
 
 use crate::block::Block;
@@ -12,11 +10,6 @@ pub struct Lbase {
     pub block_index_public_group: Table,
     pub block_index_public_group_key: Table,
     pub block_heap_data: Heap,
-}
-
-
-pub struct DBState {
-    pub db: Mutex<Lbase>
 }
 
 
