@@ -1,8 +1,8 @@
 use std::sync::Mutex;
 
-use crate::Lbase;
+use crate::LbaseConnector;
 
 
 pub struct AppState {
-    pub db: Mutex<Lbase>,
+    pub db: Mutex<LbaseConnector>,
 }

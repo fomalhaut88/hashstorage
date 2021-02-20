@@ -2,16 +2,16 @@ use std::sync::Mutex;
 
 use actix_web::{web, App, HttpServer};
 
-use hashstorage::db::Lbase;
+use hashstorage::db::LbaseConnector;
 use hashstorage::appstate::AppState;
 use hashstorage::views::{version, groups, keys, info,
-                         data_get, data_post, data_put, data_delete};
+                         data_get, data_post, data_put};
 
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     let state = web::Data::new(AppState {
-        db: Mutex::new(Lbase::new("lbase-db")),
+        db: Mutex::new(LbaseConnector::new("lbase-db")),
     });
 
     HttpServer::new(move || {
@@ -24,7 +24,6 @@ async fn main() -> std::io::Result<()> {
             .service(data_get)
             .service(data_post)
             .service(data_put)
-            .service(data_delete)
     })
         .bind(("127.0.0.1", 8080))?
         .run()

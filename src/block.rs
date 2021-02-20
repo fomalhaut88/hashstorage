@@ -1,11 +1,8 @@
-use std::convert::TryInto;
+use std::io;
 
-use lbase::TableTrait;
-use bigi::Bigi;
-use bigi_ecc::Point;
+use lbase::{TableTrait, Index};
 
-use crate::utils::string_to_bytes_fixed;
-use crate::db::Lbase;
+use crate::db::LbaseConnector;
 
 
 #[derive(Debug, Clone, Copy)]
@@ -24,23 +21,82 @@ impl TableTrait for Block {}
 
 impl Block {
     pub fn create(
-                db: &Lbase, public_key: &Point, group: &str, key: &str,
-                version: u64, data: &[u8], signature: &(Bigi, Bigi)
-            ) -> (usize, Self) {
+                db: &LbaseConnector, signature: &[u8; 64],
+                public: &[u8; 64], group: &[u8; 32], key: &[u8; 32],
+                version: u64, data: &[u8]
+            ) -> Self {
         let data_pos = db.block_heap_data.append(data).unwrap();
+
         let block = Self {
-            signature: [signature.0.to_bytes(), signature.1.to_bytes()].concat()[..].try_into().unwrap(),
-            public: public_key.to_bytes()[..].try_into().unwrap(),
-            group: string_to_bytes_fixed(group, 32)[..].try_into().unwrap(),
-            key: string_to_bytes_fixed(key, 32)[..].try_into().unwrap(),
+            signature: *signature,
+            public: *public,
+            group: *group,
+            key: *key,
             version: version,
             data: data_pos as u64,
         };
-        let id = block.insert(&db.block_table).unwrap();
-        (id, block)
+        block.insert(&db.block_table).unwrap();
+
+        Index::<[u8; 64]>::add(&db.block_index_public, public).unwrap();
+        Index::<([u8; 64], [u8; 32])>::add(
+            &db.block_index_public_group, &(*public, *group)
+        ).unwrap();
+        Index::<([u8; 64], [u8; 32], [u8; 32])>::add(
+            &db.block_index_public_group_key, &(*public, *group, *key)
+        ).unwrap();
+
+        block
     }
 
-    pub fn exists(db: &Lbase, public_key: &Point, group: &str, key: &str) -> bool {
-        false
+    pub fn exists(
+                db: &LbaseConnector,
+                public: &[u8; 64], group: &[u8; 32], key: &[u8; 32]
+            ) -> bool {
+        Self::get_by_public_group_key(db, public, group, key).is_some()
+    }
+
+    pub fn get_data(&self, db: &LbaseConnector) -> Result<Vec<u8>, io::Error> {
+        db.block_heap_data.get(self.data as usize)
+    }
+
+    pub fn update_data(
+                &mut self, db: &LbaseConnector,
+                id: usize, signature: &[u8; 64], version: u64, data: &[u8]
+            ) {
+        self.signature = *signature;
+        self.version = version;
+        self.data = db.block_heap_data.update(
+            data, self.data as usize
+        ).unwrap() as u64;
+        self.update(&db.block_table, id).unwrap();
+    }
+
+    pub fn get_by_public(db: &LbaseConnector, public: &[u8; 64]) -> Vec<Self> {
+        Index::<[u8; 64]>::search_many(
+            &db.block_index_public, &public
+        ).map(
+            |id| Block::get(&db.block_table, id).unwrap()
+        ).collect()
+    }
+
+    pub fn get_by_public_group(
+                db: &LbaseConnector, public: &[u8; 64], group: &[u8; 32]
+            ) -> Vec<Self> {
+        Index::<([u8; 64], [u8; 32])>::search_many(
+            &db.block_index_public_group, &(*public, *group)
+        ).map(
+            |id| Block::get(&db.block_table, id).unwrap()
+        ).collect()
+    }
+
+    pub fn get_by_public_group_key(
+                db: &LbaseConnector,
+                public: &[u8; 64], group: &[u8; 32], key: &[u8; 32]
+            ) -> Option<(usize, Self)> {
+        Index::<([u8; 64], [u8; 32], [u8; 32])>::search_many(
+            &db.block_index_public_group_key, &(*public, *group, *key)
+        ).map(
+            |id| (id, Block::get(&db.block_table, id).unwrap())
+        ).nth(0)
     }
 }

@@ -1,7 +1,7 @@
 [package]
 name = "hashstorage"
-version = "0.1.0"
-authors = ["Хлебущев Александр Сергеевич <a.khlebushhev@robo.cash>"]
+version = "2.0.0"
+authors = ["Alexander Khlebushchev <mail@fomalhaut.su>"]
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -9,7 +9,7 @@ edition = "2018"
 [dependencies]
 serde = "1.0"
 actix-web = "3.3.2"
-bigi = { git = "https://github.com/fomalhaut88/bigi.git", tag = "v0.4.0" }
-bigi-ecc = { git = "https://github.com/fomalhaut88/bigi-ecc.git", tag = "v0.4.0" }
-# lbase = { path = "/home/alexander/Development/lbase" }
-lbase = { path = "/home/akhlebushhev/Etc/lbase" }
+# bigi = { git = "https://github.com/fomalhaut88/bigi.git", tag = "v0.4.0" }
+# bigi-ecc = { git = "https://github.com/fomalhaut88/bigi-ecc.git", tag = "v0.4.0" }
+lbase = { path = "/home/alexander/Development/lbase" }
+# lbase = { path = "/home/akhlebushhev/Etc/lbase" }

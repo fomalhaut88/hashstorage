@@ -9,5 +9,3 @@ pub use block::*;
 pub use db::*;
 pub use appstate::*;
 pub use views::*;
-
-const HASH_STORAGE_BITS: usize = 256;

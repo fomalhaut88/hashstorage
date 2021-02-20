@@ -1,34 +1,45 @@
-use actix_web::{get, post, put, delete};
-use actix_web::{web, Result};
-use actix_web::error::{ErrorPreconditionFailed, ErrorForbidden};
-use serde::Deserialize;
+use actix_web::{get, post, put};
+use actix_web::{web, Result, HttpResponse};
+use actix_web::error::{ErrorNotFound, ErrorPreconditionFailed};
+use serde::{Serialize, Deserialize};
 
-use crate::utils::{hex_to_point, hex_to_bigi_pair, hex_to_bytes};
 use crate::block::Block;
+use crate::utils::*;
 use crate::appstate::AppState;
 
 
-#[derive(Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 struct InputJson {
-    version: Option<u64>,
+    version: u64,
     data: String,
     signature: String,
 }
 
 
-// async fn index(state: web::Data<AppState>) -> impl Responder {
-//     let size;
-//     {
-//         let db = state.db.lock().unwrap();
-//         size = db.block_table.size();
-//     }
-//     format!("{}\n", size)
-// }
+#[derive(Serialize, Deserialize, Debug)]
+struct InfoJson {
+    signature: String,
+    public: String,
+    group: String,
+    key: String,
+    version: u64,
+}
+
+
+#[derive(Serialize, Deserialize, Debug)]
+struct BlockJson {
+    signature: String,
+    public: String,
+    group: String,
+    key: String,
+    version: u64,
+    data: String,
+}
 
 
 #[get("/version")]
 async fn version() -> Result<String> {
-    Ok("2.0.0".to_string())
+    Ok(env!("CARGO_PKG_VERSION").to_string())
 }
 
 
@@ -36,11 +47,17 @@ async fn version() -> Result<String> {
 async fn groups(
             web::Path(public): web::Path<String>,
             state: web::Data<AppState>
-        ) -> Result<String> {
-    let mut public_bytes: [u8; 64] = [0u8; 64];
-    public_bytes[..public.len()].clone_from_slice(public.as_bytes());
-    // println!("{:?}", public_bytes);
-    Ok("success".to_string())
+        ) -> Result<HttpResponse> {
+    let public_bytes: [u8; 64] = hex_to_bytes(&public);
+
+    let result = {
+        let db = state.db.lock().unwrap();
+        Block::get_by_public(&db, &public_bytes).iter().map(
+            |block| String::from_utf8(block.group.to_vec()).unwrap()
+        ).collect::<Vec<String>>()
+    };
+
+    Ok(HttpResponse::Ok().json(result))
 }
 
 
@@ -48,83 +65,188 @@ async fn groups(
 async fn keys(
             web::Path((public, group)): web::Path<(String, String)>,
             state: web::Data<AppState>
-        ) -> Result<String> {
-    Ok("success".to_string())
+        ) -> Result<HttpResponse> {
+    let public_bytes: [u8; 64] = hex_to_bytes(&public);
+    let group_bytes: [u8; 32] = str_to_bytes_sized(&group);
+
+    let result = {
+        let db = state.db.lock().unwrap();
+        Block::get_by_public_group(
+            &db, &public_bytes, &group_bytes
+        ).iter().map(
+            |block| String::from_utf8(block.key.to_vec()).unwrap()
+        ).collect::<Vec<String>>()
+    };
+
+    Ok(HttpResponse::Ok().json(result))
 }
 
 
 #[get("/info/{public}/{group}/{key}")]
 async fn info(
-            web::Path((public, group, key)): web::Path<(String, String, String)>,
+            web::Path((public, group, key)):
+                web::Path<(String, String, String)>,
             state: web::Data<AppState>
-        ) -> Result<String> {
-    Ok("success".to_string())
+        ) -> Result<HttpResponse> {
+    let public_bytes: [u8; 64] = hex_to_bytes(&public);
+    let group_bytes: [u8; 32] = str_to_bytes_sized(&group);
+    let key_bytes: [u8; 32] = str_to_bytes_sized(&key);
+
+    // Get block
+    let pair_id_block = {
+        let db = state.db.lock().unwrap();
+        Block::get_by_public_group_key(
+            &db, &public_bytes, &group_bytes, &key_bytes
+        )
+    };
+
+    // If block is not found
+    if pair_id_block.is_none() {
+        return Err(ErrorNotFound("not found"));
+    }
+
+    // Unpack pair_id_block
+    let block = pair_id_block.unwrap().1;
+
+    Ok(HttpResponse::Ok().json(InfoJson {
+        signature: hex_from_bytes(&block.signature),
+        public: public,
+        group: group,
+        key: key,
+        version: block.version,
+    }))
 }
 
 
 #[get("/data/{public}/{group}/{key}")]
 async fn data_get(
-            web::Path((public, group, key)): web::Path<(String, String, String)>,
+            web::Path((public, group, key)):
+                web::Path<(String, String, String)>,
             state: web::Data<AppState>
-        ) -> Result<String> {
-    Ok("success".to_string())
+        ) -> Result<HttpResponse> {
+    let public_bytes: [u8; 64] = hex_to_bytes(&public);
+    let group_bytes: [u8; 32] = str_to_bytes_sized(&group);
+    let key_bytes: [u8; 32] = str_to_bytes_sized(&key);
+
+    // Get block
+    let pair_id_block = {
+        let db = state.db.lock().unwrap();
+        Block::get_by_public_group_key(
+            &db, &public_bytes, &group_bytes, &key_bytes
+        )
+    };
+
+    // If block is not found
+    if pair_id_block.is_none() {
+        return Err(ErrorNotFound("not found"));
+    }
+
+    // Unpack pair_id_block
+    let block = pair_id_block.unwrap().1;
+
+    // Get data bytes
+    let bytes = {
+        let db = state.db.lock().unwrap();
+        block.get_data(&db).unwrap()
+    };
+
+    Ok(HttpResponse::Ok().json(BlockJson {
+        signature: hex_from_bytes(&block.signature),
+        public: public,
+        group: group,
+        key: key,
+        version: block.version,
+        data: hex_from_bytes(&bytes),
+    }))
 }
 
 
 #[post("/data/{public}/{group}/{key}")]
 async fn data_post(
             req_json: web::Json<InputJson>,
-            web::Path((public, group, key)): web::Path<(String, String, String)>,
+            web::Path((public, group, key)):
+                web::Path<(String, String, String)>,
             state: web::Data<AppState>
-        ) -> Result<String> {
-    // Unpacking input
-    let public_key = hex_to_point(&public);
-    let signature = hex_to_bigi_pair(&req_json.signature);
-    let data = hex_to_bytes(&req_json.data);
-
-    // Check version
-    if req_json.version.is_none() || (req_json.version.unwrap() == 0) {
-        return Err(ErrorPreconditionFailed("invalid version"));
-    }
+        ) -> Result<HttpResponse> {
+    let public_bytes: [u8; 64] = hex_to_bytes(&public);
+    let group_bytes: [u8; 32] = str_to_bytes_sized(&group);
+    let key_bytes: [u8; 32] = str_to_bytes_sized(&key);
+    let data_bytes = hex_to_bytes_vec(&req_json.data);
+    let signature_bytes: [u8; 64] = hex_to_bytes(&req_json.signature);
 
     // Check block exists
     if {
         let db = state.db.lock().unwrap();
-        Block::exists(&db, &public_key, &group, &key)
+        Block::exists(&db, &public_bytes, &group_bytes, &key_bytes)
     } {
         return Err(ErrorPreconditionFailed("block exists"));
     }
 
-    // Check signature
-    if false {
-        return Err(ErrorForbidden("invalid signature"));
-    }
+    // // Check signature
+    // if false {
+    //     return Err(ErrorForbidden("invalid signature"));
+    // }
 
     // Insert block
     {
         let db = state.db.lock().unwrap();
-        Block::create(&db, &public_key, &group, &key, req_json.version.unwrap(), &data, &signature);
+        Block::create(
+            &db, &signature_bytes,
+            &public_bytes, &group_bytes, &key_bytes,
+            req_json.version, &data_bytes
+        );
     }
 
-    Ok("ok".to_string())
+    Ok(HttpResponse::Created().finish())
 }
 
 
 #[put("/data/{public}/{group}/{key}")]
 async fn data_put(
-            req_body: String,
-            web::Path((public, group, key)): web::Path<(String, String, String)>,
+            req_json: web::Json<InputJson>,
+            web::Path((public, group, key)):
+                web::Path<(String, String, String)>,
             state: web::Data<AppState>
-        ) -> Result<String> {
-    Ok("success".to_string())
-}
+        ) -> Result<HttpResponse> {
+    let public_bytes: [u8; 64] = hex_to_bytes(&public);
+    let group_bytes: [u8; 32] = str_to_bytes_sized(&group);
+    let key_bytes: [u8; 32] = str_to_bytes_sized(&key);
+    let data_bytes = hex_to_bytes_vec(&req_json.data);
+    let signature_bytes: [u8; 64] = hex_to_bytes(&req_json.signature);
 
+    // Get block
+    let pair_id_block = {
+        let db = state.db.lock().unwrap();
+        Block::get_by_public_group_key(
+            &db, &public_bytes, &group_bytes, &key_bytes
+        )
+    };
 
-#[delete("/data/{public}/{group}/{key}")]
-async fn data_delete(
-            req_body: String,
-            web::Path((public, group, key)): web::Path<(String, String, String)>,
-            state: web::Data<AppState>
-        ) -> Result<String> {
-    Ok("success".to_string())
+    // If block is not found
+    if pair_id_block.is_none() {
+        return Err(ErrorNotFound("not found"));
+    }
+
+    // Unpack pair_id_block
+    let (block_id, mut block) = pair_id_block.unwrap();
+
+    // Check version
+    if req_json.version <= block.version {
+        return Err(ErrorPreconditionFailed("invalid version"));
+    }
+
+    // // Check signature
+    // if false {
+    //     return Err(ErrorForbidden("invalid signature"));
+    // }
+
+    // Update block
+    {
+        let db = state.db.lock().unwrap();
+        block.update_data(
+            &db, block_id, &signature_bytes, req_json.version, &data_bytes
+        );
+    }
+
+    Ok(HttpResponse::NoContent().finish())
 }
