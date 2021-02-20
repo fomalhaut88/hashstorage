@@ -22,12 +22,16 @@ impl LbaseConnector {
             block_index_public: Table::new::<Index<[u8; 64]>>(
                 format!("{}/block-index-public.idx", path).as_str()
             ),
-            block_index_public_group: Table::new::<Index<([u8; 64], [u8; 32])>>(
-                format!("{}/block-index-public-group.idx", path).as_str()
-            ),
-            block_index_public_group_key: Table::new::<Index<([u8; 64], [u8; 32], [u8; 32])>>(
-                format!("{}/block-index-public-group-key.idx", path).as_str()
-            ),
+            block_index_public_group:
+                Table::new::<Index<([u8; 64], [u8; 32])>>(
+                    format!("{}/block-index-public-group.idx", path).as_str()
+                ),
+            block_index_public_group_key:
+                Table::new::<Index<([u8; 64], [u8; 32], [u8; 32])>>(
+                    format!(
+                        "{}/block-index-public-group-key.idx", path
+                    ).as_str()
+                ),
             block_heap_data: Heap::new(
                 format!("{}/block-heap-data.heap", path).as_str()
             ),

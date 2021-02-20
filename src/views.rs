@@ -8,6 +8,8 @@ use crate::utils::*;
 use crate::appstate::AppState;
 
 
+/* JSON structs */
+
 #[derive(Serialize, Deserialize, Debug)]
 struct InputJson {
     version: u64,
@@ -36,6 +38,8 @@ struct BlockJson {
     data: String,
 }
 
+
+/* Views */
 
 #[get("/version")]
 async fn version() -> Result<String> {
@@ -128,36 +132,37 @@ async fn data_get(
     let group_bytes: [u8; 32] = str_to_bytes_sized(&group);
     let key_bytes: [u8; 32] = str_to_bytes_sized(&key);
 
-    // Get block
-    let pair_id_block = {
+    let result = {
         let db = state.db.lock().unwrap();
-        Block::get_by_public_group_key(
+
+        // Get block
+        let pair_id_block = Block::get_by_public_group_key(
             &db, &public_bytes, &group_bytes, &key_bytes
-        )
+        );
+
+        // If block is not found
+        if pair_id_block.is_none() {
+            return Err(ErrorNotFound("not found"));
+        }
+
+        // Unpack pair_id_block and get bytes
+        let block = pair_id_block.unwrap().1;
+        let bytes = block.get_data(&db).unwrap();
+
+        Ok((block, bytes))
     };
 
-    // If block is not found
-    if pair_id_block.is_none() {
-        return Err(ErrorNotFound("not found"));
+    match result {
+        Ok((block, bytes)) => Ok(HttpResponse::Ok().json(BlockJson {
+            signature: hex_from_bytes(&block.signature),
+            public: public,
+            group: group,
+            key: key,
+            version: block.version,
+            data: hex_from_bytes(&bytes),
+        })),
+        Err(err) => Err(err)
     }
-
-    // Unpack pair_id_block
-    let block = pair_id_block.unwrap().1;
-
-    // Get data bytes
-    let bytes = {
-        let db = state.db.lock().unwrap();
-        block.get_data(&db).unwrap()
-    };
-
-    Ok(HttpResponse::Ok().json(BlockJson {
-        signature: hex_from_bytes(&block.signature),
-        public: public,
-        group: group,
-        key: key,
-        version: block.version,
-        data: hex_from_bytes(&bytes),
-    }))
 }
 
 
@@ -174,30 +179,33 @@ async fn data_post(
     let data_bytes = hex_to_bytes_vec(&req_json.data);
     let signature_bytes: [u8; 64] = hex_to_bytes(&req_json.signature);
 
-    // Check block exists
-    if {
+    let result = {
         let db = state.db.lock().unwrap();
-        Block::exists(&db, &public_bytes, &group_bytes, &key_bytes)
-    } {
-        return Err(ErrorPreconditionFailed("block exists"));
-    }
 
-    // // Check signature
-    // if false {
-    //     return Err(ErrorForbidden("invalid signature"));
-    // }
+        // Check block exists
+        if Block::exists(&db, &public_bytes, &group_bytes, &key_bytes) {
+            return Err(ErrorPreconditionFailed("block exists"));
+        }
 
-    // Insert block
-    {
-        let db = state.db.lock().unwrap();
+        // // Check signature
+        // if false {
+        //     return Err(ErrorForbidden("invalid signature"));
+        // }
+
+        // Insert block
         Block::create(
             &db, &signature_bytes,
             &public_bytes, &group_bytes, &key_bytes,
             req_json.version, &data_bytes
         );
-    }
 
-    Ok(HttpResponse::Created().finish())
+        Ok(())
+    };
+
+    match result {
+        Ok(()) => Ok(HttpResponse::Created().finish()),
+        Err(err) => Err(err)
+    }
 }
 
 
@@ -214,39 +222,37 @@ async fn data_put(
     let data_bytes = hex_to_bytes_vec(&req_json.data);
     let signature_bytes: [u8; 64] = hex_to_bytes(&req_json.signature);
 
-    // Get block
-    let pair_id_block = {
+    let result = {
         let db = state.db.lock().unwrap();
-        Block::get_by_public_group_key(
+
+        // Get block
+        let pair_id_block = Block::get_by_public_group_key(
             &db, &public_bytes, &group_bytes, &key_bytes
-        )
-    };
+        );
 
-    // If block is not found
-    if pair_id_block.is_none() {
-        return Err(ErrorNotFound("not found"));
-    }
+        // If block is not found
+        if pair_id_block.is_none() {
+            return Err(ErrorNotFound("not found"));
+        }
 
-    // Unpack pair_id_block
-    let (block_id, mut block) = pair_id_block.unwrap();
+        // Unpack pair_id_block
+        let (block_id, mut block) = pair_id_block.unwrap();
 
-    // Check version
-    if req_json.version <= block.version {
-        return Err(ErrorPreconditionFailed("invalid version"));
-    }
+        // // Check signature
+        // if false {
+        //     return Err(ErrorForbidden("invalid signature"));
+        // }
 
-    // // Check signature
-    // if false {
-    //     return Err(ErrorForbidden("invalid signature"));
-    // }
-
-    // Update block
-    {
-        let db = state.db.lock().unwrap();
+        // Update block
         block.update_data(
             &db, block_id, &signature_bytes, req_json.version, &data_bytes
         );
-    }
 
-    Ok(HttpResponse::NoContent().finish())
+        Ok(())
+    };
+
+    match result {
+        Ok(()) => Ok(HttpResponse::Created().finish()),
+        Err(err) => Err(err)
+    }
 }
