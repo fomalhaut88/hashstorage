@@ -1,3 +1,4 @@
+use std::env;
 use std::sync::Mutex;
 
 use bigi_ecc::schemas::load_secp256k1;
@@ -9,10 +10,25 @@ use hashstorage::views::{version, groups, keys, info,
                          data_get, data_post, data_put};
 
 
+const LBASE_PATH_DEFAULT: &str = "lbase-db";
+const HASHSTORAGE_HOST_DEFAULT: &str = "127.0.0.1";
+const HASHSTORAGE_PORT_DEFAULT: u16 = 8080;
+
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    let hashstorage_host: &str = &env::var("HASHSTORAGE_HOST")
+        .unwrap_or(HASHSTORAGE_HOST_DEFAULT.to_string())[..];
+
+    let hashstorage_port: u16 = env::var("HASHSTORAGE_PORT")
+        .unwrap_or(HASHSTORAGE_PORT_DEFAULT.to_string())
+        .parse::<u16>().unwrap();
+
+    let lbase_path: &str = &env::var("LBASE_PATH")
+        .unwrap_or(LBASE_PATH_DEFAULT.to_string())[..];
+
     let state = web::Data::new(AppState {
-        db: Mutex::new(LbaseConnector::new("lbase-db")),
+        db: Mutex::new(LbaseConnector::new(lbase_path)),
         schema: load_secp256k1(),
     });
 
@@ -27,7 +43,7 @@ async fn main() -> std::io::Result<()> {
             .service(data_post)
             .service(data_put)
     })
-        .bind(("127.0.0.1", 8080))?
+        .bind((hashstorage_host, hashstorage_port))?
         .run()
         .await
 }
