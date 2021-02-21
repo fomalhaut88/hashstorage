@@ -1,5 +1,6 @@
 use std::sync::Mutex;
 
+use bigi_ecc::schemas::load_secp256k1;
 use actix_web::{web, App, HttpServer};
 
 use hashstorage::db::LbaseConnector;
@@ -12,6 +13,7 @@ use hashstorage::views::{version, groups, keys, info,
 async fn main() -> std::io::Result<()> {
     let state = web::Data::new(AppState {
         db: Mutex::new(LbaseConnector::new("lbase-db")),
+        schema: load_secp256k1(),
     });
 
     HttpServer::new(move || {

@@ -1,10 +1,11 @@
 use actix_web::{get, post, put};
 use actix_web::{web, Result, HttpResponse};
-use actix_web::error::{ErrorNotFound, ErrorPreconditionFailed};
+use actix_web::error::{ErrorNotFound, ErrorPreconditionFailed, ErrorForbidden};
 use serde::{Serialize, Deserialize};
 
 use crate::block::Block;
 use crate::utils::*;
+use crate::crypto::check_signature;
 use crate::appstate::AppState;
 
 
@@ -187,10 +188,14 @@ async fn data_post(
             return Err(ErrorPreconditionFailed("block exists"));
         }
 
-        // // Check signature
-        // if false {
-        //     return Err(ErrorForbidden("invalid signature"));
-        // }
+        // Check signature
+        if !check_signature(
+                    &state.schema, &signature_bytes,
+                    &public_bytes, &group_bytes, &key_bytes,
+                    req_json.version, &data_bytes
+                ) {
+            return Err(ErrorForbidden("invalid signature"));
+        }
 
         // Insert block
         Block::create(
@@ -238,10 +243,14 @@ async fn data_put(
         // Unpack pair_id_block
         let (block_id, mut block) = pair_id_block.unwrap();
 
-        // // Check signature
-        // if false {
-        //     return Err(ErrorForbidden("invalid signature"));
-        // }
+        // Check signature
+        if !check_signature(
+                    &state.schema, &signature_bytes,
+                    &public_bytes, &group_bytes, &key_bytes,
+                    req_json.version, &data_bytes
+                ) {
+            return Err(ErrorForbidden("invalid signature"));
+        }
 
         // Update block
         block.update_data(
