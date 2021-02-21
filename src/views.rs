@@ -1,3 +1,5 @@
+use itertools::Itertools;
+
 use actix_web::{get, post, put};
 use actix_web::{web, Result, HttpResponse};
 use actix_web::error::{ErrorNotFound, ErrorPreconditionFailed, ErrorForbidden};
@@ -58,8 +60,8 @@ async fn groups(
     let result = {
         let db = state.db.lock().unwrap();
         Block::get_by_public(&db, &public_bytes).iter().map(
-            |block| String::from_utf8(block.group.to_vec()).unwrap()
-        ).collect::<Vec<String>>()
+            |block| str_from_bytes(&block.group)
+        ).unique().collect::<Vec<String>>()
     };
 
     Ok(HttpResponse::Ok().json(result))
@@ -79,7 +81,7 @@ async fn keys(
         Block::get_by_public_group(
             &db, &public_bytes, &group_bytes
         ).iter().map(
-            |block| String::from_utf8(block.key.to_vec()).unwrap()
+            |block| str_from_bytes(&block.key)
         ).collect::<Vec<String>>()
     };
 
@@ -160,7 +162,7 @@ async fn data_get(
             group: group,
             key: key,
             version: block.version,
-            data: hex_from_bytes(&bytes),
+            data: String::from_utf8(bytes).unwrap(),
         })),
         Err(err) => Err(err)
     }
@@ -177,7 +179,7 @@ async fn data_post(
     let public_bytes: [u8; 64] = hex_to_bytes(&public);
     let group_bytes: [u8; 32] = str_to_bytes_sized(&group);
     let key_bytes: [u8; 32] = str_to_bytes_sized(&key);
-    let data_bytes = hex_to_bytes_vec(&req_json.data);
+    let data_bytes = req_json.data.as_bytes();
     let signature_bytes: [u8; 64] = hex_to_bytes(&req_json.signature);
 
     let result = {
@@ -224,7 +226,7 @@ async fn data_put(
     let public_bytes: [u8; 64] = hex_to_bytes(&public);
     let group_bytes: [u8; 32] = str_to_bytes_sized(&group);
     let key_bytes: [u8; 32] = str_to_bytes_sized(&key);
-    let data_bytes = hex_to_bytes_vec(&req_json.data);
+    let data_bytes = req_json.data.as_bytes();
     let signature_bytes: [u8; 64] = hex_to_bytes(&req_json.signature);
 
     let result = {
@@ -242,6 +244,11 @@ async fn data_put(
 
         // Unpack pair_id_block
         let (block_id, mut block) = pair_id_block.unwrap();
+
+        // If version is not higher than in the block
+        if req_json.version <= block.version {
+            return Err(ErrorPreconditionFailed("invalid version"));
+        }
 
         // Check signature
         if !check_signature(
@@ -261,7 +268,7 @@ async fn data_put(
     };
 
     match result {
-        Ok(()) => Ok(HttpResponse::Created().finish()),
+        Ok(()) => Ok(HttpResponse::NoContent().finish()),
         Err(err) => Err(err)
     }
 }

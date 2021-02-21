@@ -8,8 +8,16 @@ pub fn str_to_bytes_sized<const L: usize>(s: &str) -> [u8; L] {
 }
 
 
+pub fn str_from_bytes(bytes: &[u8]) -> String {
+    let mut bytes_truncated: Vec<u8> =
+        bytes.to_vec().into_iter().rev().skip_while(|&x| x == 0u8).collect();
+    bytes_truncated.reverse();
+    String::from_utf8(bytes_truncated).unwrap()
+}
+
+
 pub fn hex_to_bytes_vec(hex: &str) -> Vec<u8> {
-    (0..hex.len()).step_by(2).map(
+    (0..hex.len()).step_by(2).rev().map(
         |i| u8::from_str_radix(&hex[i..(i + 2)], 16).unwrap()
     ).collect()
 }
@@ -21,5 +29,5 @@ pub fn hex_to_bytes<const L: usize>(hex: &str) -> [u8; L] {
 
 
 pub fn hex_from_bytes(bytes: &[u8]) -> String {
-    bytes.iter().map(|b| format!("{:02X?}", b)).collect()
+    bytes.iter().rev().map(|b| format!("{:02X?}", b)).collect()
 }
