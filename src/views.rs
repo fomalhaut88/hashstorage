@@ -14,6 +14,12 @@ use crate::appstate::AppState;
 /* JSON structs */
 
 #[derive(Serialize, Deserialize, Debug)]
+struct VersionJson {
+    version: String,
+}
+
+
+#[derive(Serialize, Deserialize, Debug)]
 struct InputJson {
     version: u64,
     data: String,
@@ -45,8 +51,10 @@ struct BlockJson {
 /* Views */
 
 #[get("/version")]
-async fn version() -> Result<String> {
-    Ok(env!("CARGO_PKG_VERSION").to_string())
+async fn version() -> Result<HttpResponse> {
+    Ok(HttpResponse::Ok().json(
+        VersionJson { version: env!("CARGO_PKG_VERSION").to_string() }
+    ))
 }
 
 
