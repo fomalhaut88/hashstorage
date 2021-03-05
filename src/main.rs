@@ -3,6 +3,7 @@ use std::sync::Mutex;
 
 use bigi_ecc::schemas::load_secp256k1;
 use actix_web::{web, App, HttpServer};
+use actix_web::http::header;
 use actix_cors::Cors;
 
 use hashstorage::db::LbaseConnector;
@@ -34,7 +35,10 @@ async fn main() -> std::io::Result<()> {
     });
 
     HttpServer::new(move || {
-        let cors = Cors::default().allow_any_origin();
+        let cors = Cors::default()
+            .allow_any_origin()
+            .allowed_methods(vec!["GET", "POST", "PUT"])
+            .allowed_header(header::CONTENT_TYPE);
 
         App::new()
             .wrap(cors)
