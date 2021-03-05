@@ -1,6 +1,6 @@
 use itertools::Itertools;
 
-use actix_web::{get, post, put};
+use actix_web::{get, post};
 use actix_web::{web, Result, HttpResponse};
 use actix_web::error::{ErrorNotFound, ErrorPreconditionFailed, ErrorForbidden};
 use serde::{Serialize, Deserialize};
@@ -191,13 +191,6 @@ async fn data_post(
     let signature_bytes: [u8; 64] = hex_to_bytes(&req_json.signature);
 
     let result = {
-        let db = state.db.lock().unwrap();
-
-        // Check block exists
-        if Block::exists(&db, &public_bytes, &group_bytes, &key_bytes) {
-            return Err(ErrorPreconditionFailed("block exists"));
-        }
-
         // Check signature
         if !check_signature(
                     &state.schema, &signature_bytes,
@@ -207,37 +200,7 @@ async fn data_post(
             return Err(ErrorForbidden("invalid signature"));
         }
 
-        // Insert block
-        Block::create(
-            &db, &signature_bytes,
-            &public_bytes, &group_bytes, &key_bytes,
-            req_json.version, &data_bytes
-        );
-
-        Ok(())
-    };
-
-    match result {
-        Ok(()) => Ok(HttpResponse::Created().finish()),
-        Err(err) => Err(err)
-    }
-}
-
-
-#[put("/data/{public}/{group}/{key}")]
-async fn data_put(
-            req_json: web::Json<InputJson>,
-            web::Path((public, group, key)):
-                web::Path<(String, String, String)>,
-            state: web::Data<AppState>
-        ) -> Result<HttpResponse> {
-    let public_bytes: [u8; 64] = hex_to_bytes(&public);
-    let group_bytes: [u8; 32] = str_to_bytes_sized(&group);
-    let key_bytes: [u8; 32] = str_to_bytes_sized(&key);
-    let data_bytes = req_json.data.as_bytes();
-    let signature_bytes: [u8; 64] = hex_to_bytes(&req_json.signature);
-
-    let result = {
+        // Get DB connection
         let db = state.db.lock().unwrap();
 
         // Get block
@@ -245,32 +208,28 @@ async fn data_put(
             &db, &public_bytes, &group_bytes, &key_bytes
         );
 
-        // If block is not found
-        if pair_id_block.is_none() {
-            return Err(ErrorNotFound("not found"));
-        }
+        // Insert or update block
+        match pair_id_block {
+            Some((block_id, mut block)) => {
+                // If version is not higher than in the block
+                if req_json.version <= block.version {
+                    return Err(ErrorPreconditionFailed("invalid version"));
+                }
 
-        // Unpack pair_id_block
-        let (block_id, mut block) = pair_id_block.unwrap();
-
-        // If version is not higher than in the block
-        if req_json.version <= block.version {
-            return Err(ErrorPreconditionFailed("invalid version"));
-        }
-
-        // Check signature
-        if !check_signature(
-                    &state.schema, &signature_bytes,
+                // Update block
+                block.update_data(
+                    &db, block_id, &signature_bytes, req_json.version, &data_bytes
+                );
+            },
+            None => {
+                // Insert block
+                Block::create(
+                    &db, &signature_bytes,
                     &public_bytes, &group_bytes, &key_bytes,
                     req_json.version, &data_bytes
-                ) {
-            return Err(ErrorForbidden("invalid signature"));
-        }
-
-        // Update block
-        block.update_data(
-            &db, block_id, &signature_bytes, req_json.version, &data_bytes
-        );
+                );
+            }
+        };
 
         Ok(())
     };

@@ -8,8 +8,7 @@ use actix_cors::Cors;
 
 use hashstorage::db::LbaseConnector;
 use hashstorage::appstate::AppState;
-use hashstorage::views::{version, groups, keys, info,
-                         data_get, data_post, data_put};
+use hashstorage::views::{version, groups, keys, info, data_get, data_post};
 
 
 const LBASE_PATH_DEFAULT: &str = "lbase-db";
@@ -49,7 +48,6 @@ async fn main() -> std::io::Result<()> {
             .service(info)
             .service(data_get)
             .service(data_post)
-            .service(data_put)
     })
         .bind((hashstorage_host, hashstorage_port))?
         .run()
