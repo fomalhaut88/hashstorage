@@ -11,7 +11,7 @@ use hashstorage::appstate::AppState;
 use hashstorage::views::{version, groups, keys, info, data_get, data_post};
 
 
-const LBASE_PATH_DEFAULT: &str = "lbase-db";
+const DB_PATH_DEFAULT: &str = "db";
 const HASHSTORAGE_HOST_DEFAULT: &str = "127.0.0.1";
 const HASHSTORAGE_PORT_DEFAULT: u16 = 8080;
 
@@ -25,8 +25,8 @@ async fn main() -> std::io::Result<()> {
         .unwrap_or(HASHSTORAGE_PORT_DEFAULT.to_string())
         .parse::<u16>().unwrap();
 
-    let lbase_path: &str = &env::var("LBASE_PATH")
-        .unwrap_or(LBASE_PATH_DEFAULT.to_string())[..];
+    let lbase_path: &str = &env::var("DB_PATH")
+        .unwrap_or(DB_PATH_DEFAULT.to_string())[..];
 
     let state = web::Data::new(AppState {
         db: Mutex::new(LbaseConnector::new(lbase_path)),
@@ -36,7 +36,7 @@ async fn main() -> std::io::Result<()> {
     HttpServer::new(move || {
         let cors = Cors::default()
             .allow_any_origin()
-            .allowed_methods(vec!["GET", "POST", "PUT"])
+            .allowed_methods(vec!["GET", "POST"])
             .allowed_header(header::CONTENT_TYPE);
 
         App::new()
