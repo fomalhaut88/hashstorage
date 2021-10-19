@@ -1,4 +1,4 @@
 /target/
-/lbase-db/
+/db/
 
 /Cargo.lock
