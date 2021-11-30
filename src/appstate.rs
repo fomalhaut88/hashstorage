@@ -8,5 +8,5 @@ use crate::LbaseConnector;
 
 pub struct AppState {
     pub db: Mutex<LbaseConnector>,
-    pub schema: Schema<WeierstrassCurve>,
+    pub schema: Schema<WeierstrassCurve<4>, 4>,
 }

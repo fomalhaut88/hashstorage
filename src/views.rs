@@ -218,7 +218,8 @@ async fn data_post(
 
                 // Update block
                 block.update_data(
-                    &db, block_id, &signature_bytes, req_json.version, &data_bytes
+                    &db, block_id, &signature_bytes, req_json.version,
+                    &data_bytes
                 );
             },
             None => {

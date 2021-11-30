@@ -19,15 +19,15 @@ impl LbaseConnector {
             block_table: Table::new::<Block>(
                 format!("{}/block-table.tbl", path).as_str()
             ),
-            block_index_public: Table::new::<Index<[u8; 64]>>(
+            block_index_public: Table::new::<Index>(
                 format!("{}/block-index-public.idx", path).as_str()
             ),
             block_index_public_group:
-                Table::new::<Index<([u8; 64], [u8; 32])>>(
+                Table::new::<Index>(
                     format!("{}/block-index-public-group.idx", path).as_str()
                 ),
             block_index_public_group_key:
-                Table::new::<Index<([u8; 64], [u8; 32], [u8; 32])>>(
+                Table::new::<Index>(
                     format!(
                         "{}/block-index-public-group-key.idx", path
                     ).as_str()

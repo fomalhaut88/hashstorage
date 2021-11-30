@@ -37,11 +37,11 @@ impl Block {
         };
         block.insert(&db.block_table).unwrap();
 
-        Index::<[u8; 64]>::add(&db.block_index_public, public).unwrap();
-        Index::<([u8; 64], [u8; 32])>::add(
+        Index::add(&db.block_index_public, public).unwrap();
+        Index::add(
             &db.block_index_public_group, &(*public, *group)
         ).unwrap();
-        Index::<([u8; 64], [u8; 32], [u8; 32])>::add(
+        Index::add(
             &db.block_index_public_group_key, &(*public, *group, *key)
         ).unwrap();
 
@@ -72,7 +72,7 @@ impl Block {
     }
 
     pub fn get_by_public(db: &LbaseConnector, public: &[u8; 64]) -> Vec<Self> {
-        Index::<[u8; 64]>::search_many(
+        Index::search_many(
             &db.block_index_public, &public
         ).map(
             |id| Block::get(&db.block_table, id).unwrap()
@@ -82,7 +82,7 @@ impl Block {
     pub fn get_by_public_group(
                 db: &LbaseConnector, public: &[u8; 64], group: &[u8; 32]
             ) -> Vec<Self> {
-        Index::<([u8; 64], [u8; 32])>::search_many(
+        Index::search_many(
             &db.block_index_public_group, &(*public, *group)
         ).map(
             |id| Block::get(&db.block_table, id).unwrap()
@@ -93,7 +93,7 @@ impl Block {
                 db: &LbaseConnector,
                 public: &[u8; 64], group: &[u8; 32], key: &[u8; 32]
             ) -> Option<(usize, Self)> {
-        Index::<([u8; 64], [u8; 32], [u8; 32])>::search_many(
+        Index::search_many(
             &db.block_index_public_group_key, &(*public, *group, *key)
         ).map(
             |id| (id, Block::get(&db.block_table, id).unwrap())
