@@ -131,7 +131,7 @@ curl localhost:8080/version
 The version of the service must be shown.
 
 
-## Projects that use Hash Storage
+## Projects that use Hashstorage
 
 Qnote - cloud based browser application to make notes: https://github.com/fomalhaut88/qnote
 
