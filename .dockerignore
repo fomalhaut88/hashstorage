@@ -1,0 +1,10 @@
+*~
+load_test
+target
+
+db/*
+
+Cargo.lock
+restart.sh
+start.sh
+stop.sh
