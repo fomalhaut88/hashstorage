@@ -3,5 +3,5 @@ ENV HASHSTORAGE_HOST=0.0.0.0
 WORKDIR /app
 EXPOSE 8080
 COPY . .
-RUN BIGI_BITS=512 cargo build --release
+RUN cargo build --release
 CMD ./target/release/hashstorage
