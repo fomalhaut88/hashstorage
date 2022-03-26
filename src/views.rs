@@ -48,6 +48,14 @@ struct BlockJson {
 }
 
 
+#[derive(Deserialize, Debug)]
+struct URLFullParams {
+    public: String,
+    group: String,
+    key: String,
+}
+
+
 /* Views */
 
 #[get("/version")]
@@ -60,7 +68,7 @@ async fn version() -> Result<HttpResponse> {
 
 #[get("/groups/{public}")]
 async fn groups(
-            web::Path(public): web::Path<String>,
+            public: web::Path<String>,
             state: web::Data<AppState>
         ) -> Result<HttpResponse> {
     let public_bytes: [u8; 64] = hex_to_bytes(&public);
@@ -78,9 +86,11 @@ async fn groups(
 
 #[get("/keys/{public}/{group}")]
 async fn keys(
-            web::Path((public, group)): web::Path<(String, String)>,
+            params: web::Path<(String, String)>,
             state: web::Data<AppState>
         ) -> Result<HttpResponse> {
+    let (public, group) = params.into_inner();
+
     let public_bytes: [u8; 64] = hex_to_bytes(&public);
     let group_bytes: [u8; 32] = str_to_bytes_sized(&group);
 
@@ -99,13 +109,12 @@ async fn keys(
 
 #[get("/info/{public}/{group}/{key}")]
 async fn info(
-            web::Path((public, group, key)):
-                web::Path<(String, String, String)>,
+            params: web::Path<URLFullParams>,
             state: web::Data<AppState>
         ) -> Result<HttpResponse> {
-    let public_bytes: [u8; 64] = hex_to_bytes(&public);
-    let group_bytes: [u8; 32] = str_to_bytes_sized(&group);
-    let key_bytes: [u8; 32] = str_to_bytes_sized(&key);
+    let public_bytes: [u8; 64] = hex_to_bytes(&params.public);
+    let group_bytes: [u8; 32] = str_to_bytes_sized(&params.group);
+    let key_bytes: [u8; 32] = str_to_bytes_sized(&params.key);
 
     // Get block
     let pair_id_block = {
@@ -125,9 +134,9 @@ async fn info(
 
     Ok(HttpResponse::Ok().json(InfoJson {
         signature: hex_from_bytes(&block.signature),
-        public: public,
-        group: group,
-        key: key,
+        public: params.public.clone(),
+        group: params.group.clone(),
+        key: params.key.clone(),
         version: block.version,
     }))
 }
@@ -135,13 +144,12 @@ async fn info(
 
 #[get("/data/{public}/{group}/{key}")]
 async fn data_get(
-            web::Path((public, group, key)):
-                web::Path<(String, String, String)>,
+            params: web::Path<URLFullParams>,
             state: web::Data<AppState>
         ) -> Result<HttpResponse> {
-    let public_bytes: [u8; 64] = hex_to_bytes(&public);
-    let group_bytes: [u8; 32] = str_to_bytes_sized(&group);
-    let key_bytes: [u8; 32] = str_to_bytes_sized(&key);
+    let public_bytes: [u8; 64] = hex_to_bytes(&params.public);
+    let group_bytes: [u8; 32] = str_to_bytes_sized(&params.group);
+    let key_bytes: [u8; 32] = str_to_bytes_sized(&params.key);
 
     let result = {
         let db = state.db.lock().unwrap();
@@ -166,9 +174,9 @@ async fn data_get(
     match result {
         Ok((block, bytes)) => Ok(HttpResponse::Ok().json(BlockJson {
             signature: hex_from_bytes(&block.signature),
-            public: public,
-            group: group,
-            key: key,
+            public: params.public.clone(),
+            group: params.group.clone(),
+            key: params.key.clone(),
             version: block.version,
             data: String::from_utf8(bytes).unwrap(),
         })),
@@ -180,13 +188,12 @@ async fn data_get(
 #[post("/data/{public}/{group}/{key}")]
 async fn data_post(
             req_json: web::Json<InputJson>,
-            web::Path((public, group, key)):
-                web::Path<(String, String, String)>,
+            params: web::Path<URLFullParams>,
             state: web::Data<AppState>
         ) -> Result<HttpResponse> {
-    let public_bytes: [u8; 64] = hex_to_bytes(&public);
-    let group_bytes: [u8; 32] = str_to_bytes_sized(&group);
-    let key_bytes: [u8; 32] = str_to_bytes_sized(&key);
+    let public_bytes: [u8; 64] = hex_to_bytes(&params.public);
+    let group_bytes: [u8; 32] = str_to_bytes_sized(&params.group);
+    let key_bytes: [u8; 32] = str_to_bytes_sized(&params.key);
     let data_bytes = req_json.data.as_bytes();
     let signature_bytes: [u8; 64] = hex_to_bytes(&req_json.signature);
 
@@ -211,8 +218,8 @@ async fn data_post(
         // Insert or update block
         match pair_id_block {
             Some((block_id, mut block)) => {
-                // If version is not higher than in the block
-                if req_json.version <= block.version {
+                // If version is not the next version of the block
+                if req_json.version != block.version + 1 {
                     return Err(ErrorPreconditionFailed("invalid version"));
                 }
 
@@ -223,6 +230,11 @@ async fn data_post(
                 );
             },
             None => {
+                // If version is not equal to 1
+                if req_json.version != 1 {
+                    return Err(ErrorPreconditionFailed("invalid version"));
+                }
+
                 // Insert block
                 Block::create(
                     &db, &signature_bytes,
